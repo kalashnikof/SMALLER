@@ -1,7 +1,10 @@
 package ru.kk.tst.service
 
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Component
-import java.util.concurrent.ConcurrentHashMap
+import org.springframework.transaction.annotation.Transactional
+import ru.kk.tst.model.Link
+import ru.kk.tst.model.repositories.LinkRepository
 
 /**
  * Created by Kirill on 20.01.2017.
@@ -9,20 +12,23 @@ import java.util.concurrent.ConcurrentHashMap
 @Component
 class DefaultKeyMapperService : KeyMapperService {
 
-    private val map: MutableMap<String, String> = ConcurrentHashMap()
+    @Autowired
+    lateinit var converter: KeyConverterService
 
-    override fun add(key: String, link: String): KeyMapperService.Add {
-        if (map.contains(key)) {
-            return KeyMapperService.Add.AlreadyExist(key)
+    @Autowired
+    lateinit var repo: LinkRepository
+
+    @Transactional
+    override fun add(link: String) =
+            converter.idToKey(repo.save(Link(link)).id)
+
+    override fun getLink(key: String): KeyMapperService.Get {
+        val result = repo.findOne(converter.keyToId(key))
+        return if (result.isPresent) {
+            KeyMapperService.Get.Link(result.get().text)
         } else {
-            map.put(key, link)
-            return KeyMapperService.Add.Success(key, link)
+            KeyMapperService.Get.NotFound(key)
         }
     }
-
-    override fun getLink(key: String) = if (map.contains(key)) {
-        KeyMapperService.Get.Link(map.get(key)!!)
-    } else {
-        KeyMapperService.Get.NotFound(key)
-    }
 }
+
